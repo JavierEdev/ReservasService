@@ -4,13 +4,16 @@ namespace Infrastructure\Services;
 
 use Domain\Entities\Reserva;
 use Domain\Interfaces\ReservaRepositoryInterface;
+use Domain\Interfaces\PagoApiInterface;
 use Exception;
 
 class ReservaService {
     private ReservaRepositoryInterface $repository;
+    private PagoApiInterface $pagoApi;
 
-    public function __construct(ReservaRepositoryInterface $repository) {
+    public function __construct(ReservaRepositoryInterface $repository, PagoApiInterface $pagoApi) {
         $this->repository = $repository;
+        $this->pagoApi = $pagoApi;
     }
 
     public function reservar(Reserva $reserva): array {
@@ -71,38 +74,14 @@ class ReservaService {
     }
 
     public function pagarReserva(int $idReserva, float $monto, string $correo, string $tarjeta): array {
-    $payload = json_encode([
-        'idReserva' => $idReserva,
-        'monto' => $monto,
-        'correoCliente' => $correo,
-        'tarjeta' => $tarjeta
-    ]);
+        $datos = [
+            'idReserva' => $idReserva,
+            'monto' => $monto,
+            'correoCliente' => $correo,
+            'tarjeta' => $tarjeta
+        ];
 
-    $ch = curl_init('https://localhost:7116/api/pagos');
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_POST, true);
-    curl_setopt($ch, CURLOPT_POSTFIELDS, $payload);
-    curl_setopt($ch, CURLOPT_HTTPHEADER, [
-        'Content-Type: application/json',
-        'Content-Length: ' . strlen($payload)
-    ]);
-    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-    curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
-
-    $response = curl_exec($ch);
-    if ($response === false) {
-        $error = curl_error($ch);
-        curl_close($ch);
-        return ['error' => 'Error en la solicitud CURL: ' . $error];
+        return $this->pagoApi->procesarPago($datos);
     }
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
-
-    if ($httpCode === 200) {
-        return json_decode($response, true);
-    } else {
-        return ['error' => 'No se pudo procesar el pago'];
-    }
-}
 
 }
